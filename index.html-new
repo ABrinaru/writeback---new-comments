@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard Comments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://extensions.tableauusercontent.com/tableau.extensions.1.latest.js"></script>
+<style>
+  :root {
+    --paper: #F7F7F4;
+    --ink: #1E2421;
+    --line: #DAD8D1;
+    --accent: #2B5D5E;
+    --accent-soft: #E3EEEE;
+    --muted: #767A72;
+    --danger: #A5472E;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: 'Inter', sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    font-size: 13px;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* header */
+  .header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 10px 14px 8px;
+  }
+  .header h1 {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.01em; margin: 0;
+  }
+  .header button {
+    background: none; border: none; color: var(--muted);
+    font-family: 'Inter', sans-serif; font-size: 12px; cursor: pointer;
+    padding: 0;
+  }
+  .header button:hover { color: var(--ink); text-decoration: underline; }
+
+  /* tabs */
+  .tabs {
+    display: flex; gap: 18px; padding: 0 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab {
+    background: none; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 500;
+    color: var(--muted); padding: 7px 0 8px; border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .tab:disabled { color: #C6C4BC; cursor: default; }
+
+  /* comment list */
+  .list {
+    flex: 1; overflow-y: auto; padding: 12px 14px;
+  }
+  .entry { margin-bottom: 14px; }
+  .entry .meta {
+    font-size: 11.5px; color: var(--muted); margin-bottom: 2px;
+  }
+  .entry .meta b { color: var(--ink); font-weight: 600; }
+  .entry .text {
+    font-family: 'Source Serif 4', serif; font-size: 14.5px; line-height: 1.45;
+  }
+  .empty, .status {
+    color: var(--muted); font-family: 'Source Serif 4', serif; font-style: italic;
+    font-size: 13.5px; line-height: 1.5; padding-top: 6px;
+  }
+  .status.error { color: var(--danger); font-style: normal; font-family: 'Inter', sans-serif; font-size: 12.5px; }
+
+  /* composer */
+  .composer {
+    border-top: 1px solid var(--line); padding: 10px 14px 12px;
+    background: var(--paper);
+  }
+  .name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+  .name-row input {
+    border: none; border-bottom: 1px solid var(--line); background: transparent;
+    font-family: 'Inter', sans-serif; font-size: 12px; color: var(--ink); padding: 2px 0; width: 120px;
+  }
+  .name-row input:focus { outline: none; border-bottom-color: var(--accent); }
+  .name-row .save-name {
+    color: var(--accent); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 500;
+  }
+  .send-row { display: flex; gap: 8px; align-items: flex-end; }
+  .send-row textarea {
+    flex: 1; resize: none; border: 1px solid var(--line); border-radius: 3px;
+    font-family: 'Source Serif 4', serif; font-size: 13.5px; padding: 7px 9px;
+    min-height: 34px; max-height: 90px; background: #fff; color: var(--ink);
+  }
+  .send-row textarea:focus { outline: none; border-color: var(--accent); }
+  .send-row button {
+    background: var(--accent); color: #fff; border: none; border-radius: 3px;
+    padding: 0 14px; height: 34px; font-family: 'Inter', sans-serif; font-weight: 500;
+    font-size: 12.5px; cursor: pointer;
+  }
+  .send-row button:disabled { background: #C6C4BC; cursor: default; }
+  .send-row button:hover:not(:disabled) { background: #224748; }
+
+  .setup-screen {
+    padding: 18px; font-size: 13px; line-height: 1.6;
+  }
+  .setup-screen code {
+    background: var(--accent-soft); padding: 1px 4px; border-radius: 2px; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>Comments</h1>
+    <button id="refreshBtn" type="button">Refresh</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard" id="tabDashboard">Dashboard</button>
+    <button class="tab" data-tab="mark" id="tabMark" disabled>Mark</button>
+  </div>
+  <div class="list" id="list">
+    <div class="status">Loading…</div>
+  </div>
+  <div class="composer">
+    <div class="name-row" id="nameRow">
+      <span>Posting as</span>
+      <input type="text" id="nameInput" placeholder="your name" />
+      <button class="save-name" id="saveNameBtn" type="button">Save</button>
+    </div>
+    <div class="send-row">
+      <textarea id="commentInput" placeholder="Write a comment…"></textarea>
+      <button id="sendBtn" type="button">Post</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ======================= CONFIGURE THESE TWO VALUES ======================= *
+ * APPS_SCRIPT_URL: the "Web app" URL you get after deploying Code.gs
+ * SHARED_TOKEN:    any random string, must exactly match SHARED_TOKEN in Code.gs
+ * ============================================================================ */
+const CONFIG = {
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwbvu4gE-RmjO0H8BZeplcYVJrPBFZog3CHVHMZi_zEhoubUcLMtLIdTXEr_qIRzpFyTQ/exec",
+  SHARED_TOKEN: "wb-ab20d1f9"
+};
+/* ============================================================================ */
+
+const POLL_MS = 10000;
+
+let dashboardName = "";
+let activeTab = "dashboard";
+let currentMark = null;      // { worksheetName, key, label }
+let pollTimer = null;
+
+const els = {
+  list: document.getElementById('list'),
+  tabDashboard: document.getElementById('tabDashboard'),
+  tabMark: document.getElementById('tabMark'),
+  refreshBtn: document.getElementById('refreshBtn'),
+  nameInput: document.getElementById('nameInput'),
+  saveNameBtn: document.getElementById('saveNameBtn'),
+  commentInput: document.getElementById('commentInput'),
+  sendBtn: document.getElementById('sendBtn'),
+};
+
+function isConfigured() {
+  return CONFIG.APPS_SCRIPT_URL.indexOf('PASTE_') !== 0 && CONFIG.APPS_SCRIPT_URL.length > 10;
+}
+
+function showSetupNeeded() {
+  document.getElementById('app').innerHTML =
+    '<div class="setup-screen">' +
+    '<p><b>Setup needed.</b> This extension needs its backend connected before it will work.</p>' +
+    '<p>Open <code>index.html</code>, fill in <code>APPS_SCRIPT_URL</code> and <code>SHARED_TOKEN</code> at the top of the script, then re-publish the file to GitHub Pages.</p>' +
+    '<p>See <code>SETUP.md</code> for the full walkthrough.</p>' +
+    '</div>';
+}
+
+function getAuthorName() {
+  return localStorage.getItem('wb_author') || '';
+}
+
+function initNameField() {
+  const name = getAuthorName();
+  els.nameInput.value = name;
+}
+
+els.saveNameBtn.addEventListener('click', () => {
+  const v = els.nameInput.value.trim();
+  if (v) localStorage.setItem('wb_author', v);
+});
+
+function currentScopeKey() {
+  if (activeTab === 'dashboard') {
+    return { scope: 'dashboard', key: dashboardName };
+  }
+  return currentMark ? { scope: 'mark', key: currentMark.key } : null;
+}
+
+function renderStatus(msg, isError) {
+  els.list.innerHTML = '<div class="status' + (isError ? ' error' : '') + '"></div>';
+  els.list.firstChild.textContent = msg;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function formatTime(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch (e) { return iso; }
+}
+
+function renderComments(comments) {
+  if (!comments.length) {
+    const where = activeTab === 'dashboard' ? 'this dashboard' : 'this mark';
+    els.list.innerHTML = '<div class="empty">No comments yet on ' + where + '. Be the first to add one.</div>';
+    return;
+  }
+  els.list.innerHTML = comments.map(c =>
+    '<div class="entry">' +
+      '<div class="meta"><b>' + escapeHtml(c.author || 'Anonymous') + '</b> &middot; ' + formatTime(c.timestamp) + '</div>' +
+      '<div class="text">' + escapeHtml(c.comment) + '</div>' +
+    '</div>'
+  ).join('');
+  els.list.scrollTop = els.list.scrollHeight;
+}
+
+async function loadComments() {
+  const sk = currentScopeKey();
+  if (!sk) {
+    els.list.innerHTML = '<div class="empty">Select a mark on the dashboard to comment on it.</div>';
+    return;
+  }
+  const url = CONFIG.APPS_SCRIPT_URL +
+    '?token=' + encodeURIComponent(CONFIG.SHARED_TOKEN) +
+    '&dashboard=' + encodeURIComponent(dashboardName) +
+    '&scope=' + encodeURIComponent(sk.scope) +
+    '&key=' + encodeURIComponent(sk.key);
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) { renderStatus('Couldn\'t load comments: ' + data.error, true); return; }
+    renderComments(data.comments || []);
+  } catch (e) {
+    renderStatus('Couldn\'t reach the comment service. Check your connection.', true);
+  }
+}
+
+async function postComment() {
+  const sk = currentScopeKey();
+  const text = els.commentInput.value.trim();
+  const author = getAuthorName();
+  if (!sk || !text) return;
+  if (!author) { els.nameInput.focus(); return; }
+
+  els.sendBtn.disabled = true;
+  try {
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        token: CONFIG.SHARED_TOKEN,
+        action: 'add',
+        dashboard: dashboardName,
+        scope: sk.scope,
+        key: sk.key,
+        author: author,
+        comment: text
+      })
+    });
+    const data = await res.json();
+    if (data.error) { renderStatus('Couldn\'t post: ' + data.error, true); return; }
+    els.commentInput.value = '';
+    await loadComments();
+  } catch (e) {
+    renderStatus('Couldn\'t post your comment. Check your connection and try again.', true);
+  } finally {
+    els.sendBtn.disabled = false;
+  }
+}
+
+function switchTab(tab) {
+  if (tab === 'mark' && !currentMark) return;
+  activeTab = tab;
+  els.tabDashboard.classList.toggle('active', tab === 'dashboard');
+  els.tabMark.classList.toggle('active', tab === 'mark');
+  loadComments();
+}
+
+els.tabDashboard.addEventListener('click', () => switchTab('dashboard'));
+els.tabMark.addEventListener('click', () => switchTab('mark'));
+els.refreshBtn.addEventListener('click', loadComments);
+els.sendBtn.addEventListener('click', postComment);
+els.commentInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postComment(); }
+});
+
+function keyFromSelection(worksheetName, dataTable) {
+  if (!dataTable || !dataTable.data || !dataTable.data.length) return null;
+  const row = dataTable.data[0];
+  const pairs = dataTable.columns.map((col, i) => col.fieldName + '=' + row[i].formattedValue);
+  pairs.sort();
+  return worksheetName + '::' + pairs.join('|');
+}
+
+function labelFromKey(key) {
+  const parts = key.split('::');
+  return parts[1] ? parts[1].split('|').join(', ') : key;
+}
+
+async function handleSelectionChanged(worksheet) {
+  try {
+    const marks = await worksheet.getSelectedMarksAsync();
+    const table = marks.data && marks.data[0];
+    const key = keyFromSelection(worksheet.name, table);
+    if (key) {
+      currentMark = { key: key, label: labelFromKey(key) };
+      els.tabMark.disabled = false;
+      els.tabMark.textContent = 'Mark';
+      switchTab('mark');
+    } else {
+      currentMark = null;
+      els.tabMark.disabled = true;
+      if (activeTab === 'mark') switchTab('dashboard');
+    }
+  } catch (e) {
+    // selection read failed; leave mark tab as-is
+  }
+}
+
+async function init() {
+  if (!isConfigured()) { showSetupNeeded(); return; }
+  initNameField();
+
+  await tableau.extensions.initializeAsync();
+  const dashboard = tableau.extensions.dashboardContent.dashboard;
+  dashboardName = dashboard.name;
+
+  dashboard.worksheets.forEach(ws => {
+    ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, () => handleSelectionChanged(ws));
+  });
+
+  await loadComments();
+  pollTimer = setInterval(loadComments, POLL_MS);
+}
+
+init().catch(err => renderStatus('Extension failed to start: ' + err, true));
+</script>
+</body>
+</html>
